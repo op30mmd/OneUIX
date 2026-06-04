@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement.returnConstant
@@ -230,15 +231,13 @@ object Settings {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val view = param.thisObject as View
 
-                        // 1. Hide the view
+                        // Hide it immediately as a backup
                         view.visibility = View.GONE
 
-                        // 2. Force size to 0 so it never takes up space
-                        val lp = view.layoutParams
-                        if (lp != null) {
-                            lp.width = 0
-                            lp.height = 0
-                            view.layoutParams = lp
+                        // Safely remove it from the layout tree on the next frame
+                        view.post {
+                            val parent = view.parent as? ViewGroup
+                            parent?.removeView(view)
                         }
                     }
                 }
