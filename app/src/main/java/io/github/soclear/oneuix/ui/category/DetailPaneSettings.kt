@@ -79,6 +79,12 @@ fun DetailPaneSettings(
             checked = uiState.spoofPhoneStatusAsOfficial,
             onCheckedChange = { onEvent(SettingsEvent.SpoofPhoneStatusAsOfficial(it)) }
         )
+        SwitchItem(
+            icon = ImageVector.vectorResource(id = R.drawable.person_pin_circle),
+            title = stringResource(id = R.string.hideSettingsAccountCard_title),
+            checked = uiState.hideSettingsAccountCard,
+            onCheckedChange = { onEvent(SettingsEvent.HideSettingsAccountCard(it)) }
+        )
     }
 }
 
@@ -106,6 +112,9 @@ sealed interface SettingsEvent {
 
     @JvmInline
     value class SpoofPhoneStatusAsOfficial(val value: Boolean) : SettingsEvent
+
+    @JvmInline
+    value class HideSettingsAccountCard(val value: Boolean) : SettingsEvent
 }
 
 fun SettingViewModel.onSettingsEvent(event: SettingsEvent) {
@@ -155,6 +164,12 @@ fun SettingViewModel.onSettingsEvent(event: SettingsEvent) {
             is SettingsEvent.SpoofPhoneStatusAsOfficial -> preference.copy(
                 settings = preference.settings.copy(
                     spoofPhoneStatusAsOfficial = event.value
+                )
+            )
+
+            is SettingsEvent.HideSettingsAccountCard -> preference.copy(
+                settings = preference.settings.copy(
+                    hideSettingsAccountCard = event.value
                 )
             )
         }

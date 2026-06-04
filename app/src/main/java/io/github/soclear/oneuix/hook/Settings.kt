@@ -5,11 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XC_MethodReplacement
 import de.robv.android.xposed.XC_MethodReplacement.returnConstant
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedBridge.hookMethod
+import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.XposedHelpers.findAndHookMethod
 import de.robv.android.xposed.XposedHelpers.findMethodExactIfExists
 import de.robv.android.xposed.XposedHelpers.getObjectField
@@ -213,6 +216,27 @@ object Settings {
                 "checkRootingCondition",
                 returnConstant(false)
             )
+        } catch (t: Throwable) {
+            XposedBridge.log(t)
+        }
+    }
+
+    fun hideSettingsAccountCard(loadPackageParam: LoadPackageParam) {
+        if (loadPackageParam.packageName != Package.SETTINGS) return
+        try {
+            val controllerClass = XposedHelpers.findClassIfExists(
+                "com.samsung.android.settings.homepage.TopLevelSamsungAccountPreferenceController",
+                loadPackageParam.classLoader
+            )
+
+            if (controllerClass != null) {
+                // Force the controller to always return 3 (which means "Hide this setting")
+                XposedBridge.hookAllMethods(
+                    controllerClass,
+                    "getAvailabilityStatus",
+                    XC_MethodReplacement.returnConstant(3)
+                )
+            }
         } catch (t: Throwable) {
             XposedBridge.log(t)
         }

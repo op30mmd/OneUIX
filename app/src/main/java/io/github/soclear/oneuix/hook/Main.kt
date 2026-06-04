@@ -203,6 +203,10 @@ class Main : IXposedHookLoadPackage, IXposedHookInitPackageResources, IXposedHoo
                 if (preference.settings.spoofPhoneStatusAsOfficial) {
                     Settings.spoofPhoneStatusAsOfficial(lpparam)
                 }
+
+                if (preference.settings.hideSettingsAccountCard) {
+                    Settings.hideSettingsAccountCard(lpparam)
+                }
             }
 
             Package.SM_CN -> {
