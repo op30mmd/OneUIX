@@ -225,15 +225,21 @@ object Settings {
             findAndHookMethod(
                 "com.samsung.android.settings.homepage.SecHomepageAccountLayout",
                 loadPackageParam.classLoader,
-                "onMeasure",
-                Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType,
+                "onFinishInflate",
                 object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
+                    override fun afterHookedMethod(param: MethodHookParam) {
                         val view = param.thisObject as View
+
+                        // 1. Hide the view
                         view.visibility = View.GONE
-                        XposedHelpers.callMethod(view, "setMeasuredDimension", 0, 0)
-                        param.result = null
+
+                        // 2. Force size to 0 so it never takes up space
+                        val lp = view.layoutParams
+                        if (lp != null) {
+                            lp.width = 0
+                            lp.height = 0
+                            view.layoutParams = lp
+                        }
                     }
                 }
             )
