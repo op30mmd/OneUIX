@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.TextView
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement.returnConstant
@@ -223,25 +224,52 @@ object Settings {
     fun hideSettingsAccountCard(loadPackageParam: LoadPackageParam) {
         if (loadPackageParam.packageName != Package.SETTINGS) return
         try {
-            findAndHookMethod(
+            val clazz = XposedHelpers.findClass(
                 "com.samsung.android.settings.homepage.SecHomepageAccountLayout",
-                loadPackageParam.classLoader,
-                "onFinishInflate",
-                object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        val view = param.thisObject as View
-
-                        // Hide it immediately as a backup
-                        view.visibility = View.GONE
-
-                        // Safely remove it from the layout tree on the next frame
-                        view.post {
-                            val parent = view.parent as? ViewGroup
-                            parent?.removeView(view)
-                        }
-                    }
-                }
+                loadPackageParam.classLoader
             )
+
+            // Hooking the constructor guarantees execution without worrying about overridden methods
+            XposedBridge.hookAllConstructors(clazz, object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val view = param.thisObject as View
+
+                    view.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
+                        override fun onPreDraw(): Boolean {
+                            var changed = false
+
+                            if (view.visibility != View.GONE) {
+                                view.visibility = View.GONE
+                                changed = true
+                            }
+
+                            val lp = view.layoutParams
+                            if (lp != null) {
+                                // Collapse the view's physical dimensions
+                                if (lp.width != 0 || lp.height != 0) {
+                                    lp.width = 0
+                                    lp.height = 0
+                                    changed = true
+                                }
+
+                                // Collapse any spacing/margins so it leaves no blank gaps
+                                if (lp is ViewGroup.MarginLayoutParams) {
+                                    if (lp.topMargin != 0 || lp.bottomMargin != 0 || lp.leftMargin != 0 || lp.rightMargin != 0) {
+                                        lp.setMargins(0, 0, 0, 0)
+                                        changed = true
+                                    }
+                                }
+
+                                // Re-apply LayoutParams only if we modified them (prevents infinite layout loops)
+                                if (changed) {
+                                    view.layoutParams = lp
+                                }
+                            }
+                            return true
+                        }
+                    })
+                }
+            })
         } catch (t: Throwable) {
             XposedBridge.log(t)
         }
