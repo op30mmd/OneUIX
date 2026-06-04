@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewTreeObserver
 import android.widget.TextView
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement.returnConstant
@@ -229,44 +228,79 @@ object Settings {
                 loadPackageParam.classLoader
             )
 
-            // Hooking the constructor guarantees execution without worrying about overridden methods
             XposedBridge.hookAllConstructors(clazz, object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
                     val view = param.thisObject as View
 
-                    view.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
-                        override fun onPreDraw(): Boolean {
-                            var changed = false
+                    view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                        override fun onViewAttachedToWindow(v: View) {
+                            var targetView = v
+                            var parent = v.parent
+                            var foundRecyclerView = false
 
-                            if (view.visibility != View.GONE) {
-                                view.visibility = View.GONE
-                                changed = true
+                            // Climb the view tree to find the absolute root wrapper inside the RecyclerView
+                            while (parent is ViewGroup) {
+                                if (parent.javaClass.simpleName.contains("RecyclerView")) {
+                                    foundRecyclerView = true
+                                    break
+                                }
+                                targetView = parent as View
+                                parent = parent.parent
                             }
 
-                            val lp = view.layoutParams
-                            if (lp != null) {
-                                // Collapse the view's physical dimensions
-                                if (lp.width != 0 || lp.height != 0) {
-                                    lp.width = 0
-                                    lp.height = 0
-                                    changed = true
+                            // Fallback just in case Samsung changes the layout structure in a future update
+                            if (!foundRecyclerView) {
+                                targetView = v
+                            }
+
+                            // Attach an indestructible layout listener to the root item
+                            targetView.addOnLayoutChangeListener { changedView, _, _, _, _, _, _, _, _ ->
+
+                                // 1. Force Visibility
+                                if (changedView.visibility != View.GONE) {
+                                    changedView.visibility = View.GONE
                                 }
 
-                                // Collapse any spacing/margins so it leaves no blank gaps
-                                if (lp is ViewGroup.MarginLayoutParams) {
-                                    if (lp.topMargin != 0 || lp.bottomMargin != 0 || lp.leftMargin != 0 || lp.rightMargin != 0) {
-                                        lp.setMargins(0, 0, 0, 0)
-                                        changed = true
+                                // 2. Erase Paddings (Prevents infinite loops by checking first)
+                                if (changedView.paddingTop != 0 || changedView.paddingBottom != 0 ||
+                                    changedView.paddingLeft != 0 || changedView.paddingRight != 0) {
+                                    changedView.setPadding(0, 0, 0, 0)
+                                }
+
+                                // 3. Erase Minimum Heights mapped from XML
+                                if (changedView.minimumHeight != 0) changedView.minimumHeight = 0
+                                if (changedView.minimumWidth != 0) changedView.minimumWidth = 0
+
+                                // 4. Erase Physical Dimensions and Margins
+                                val lp = changedView.layoutParams
+                                if (lp != null) {
+                                    var modified = false
+                                    if (lp.width != 0 || lp.height != 0) {
+                                        lp.width = 0
+                                        lp.height = 0
+                                        modified = true
+                                    }
+                                    if (lp is ViewGroup.MarginLayoutParams) {
+                                        if (lp.topMargin != 0 || lp.bottomMargin != 0 ||
+                                            lp.leftMargin != 0 || lp.rightMargin != 0) {
+                                            lp.setMargins(0, 0, 0, 0)
+                                            modified = true
+                                        }
+                                    }
+
+                                    // Only re-apply LayoutParams if we changed them to prevent an infinite layout ANR loop
+                                    if (modified) {
+                                        changedView.layoutParams = lp
                                     }
                                 }
-
-                                // Re-apply LayoutParams only if we modified them (prevents infinite layout loops)
-                                if (changed) {
-                                    view.layoutParams = lp
-                                }
                             }
-                            return true
+
+                            // Trigger the hiding process manually for the first frame
+                            targetView.visibility = View.GONE
+                            targetView.requestLayout()
                         }
+
+                        override fun onViewDetachedFromWindow(v: View) {}
                     })
                 }
             })
