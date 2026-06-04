@@ -113,6 +113,7 @@
     <string name="supportAutoPowerOnOff_summary">Settings -> Reset -> Auto power on/off</string>
     <string name="spoofPhoneStatusAsOfficial_title">Spoof phone status as Official</string>
     <string name="spoofPhoneStatusAsOfficial_summary">Settings -> About phone -> Status information</string>
+    <string name="hideSettingsAccountCard_title">Hide Sign In card in Settings</string>
     <string name="noAIWatermark_title">Disable Photo Editor AI watermark</string>
     <string name="bypassHealthMonitorCountryCheck_title">Bypass Samsung Health Monitor country check</string>
     <string name="bypassHealthMonitorCountryCheck_summary">Allow using Health Monitor in unsupported countries</string>

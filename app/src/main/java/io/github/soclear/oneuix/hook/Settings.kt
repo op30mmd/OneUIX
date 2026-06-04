@@ -10,6 +10,7 @@ import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement.returnConstant
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedBridge.hookMethod
+import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.XposedHelpers.findAndHookMethod
 import de.robv.android.xposed.XposedHelpers.findMethodExactIfExists
 import de.robv.android.xposed.XposedHelpers.getObjectField
@@ -212,6 +213,29 @@ object Settings {
                 loadPackageParam.classLoader,
                 "checkRootingCondition",
                 returnConstant(false)
+            )
+        } catch (t: Throwable) {
+            XposedBridge.log(t)
+        }
+    }
+
+    fun hideSettingsAccountCard(loadPackageParam: LoadPackageParam) {
+        if (loadPackageParam.packageName != Package.SETTINGS) return
+        try {
+            findAndHookMethod(
+                "com.samsung.android.settings.homepage.SecHomepageAccountLayout",
+                loadPackageParam.classLoader,
+                "onMeasure",
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val view = param.thisObject as View
+                        view.visibility = View.GONE
+                        XposedHelpers.callMethod(view, "setMeasuredDimension", 0, 0)
+                        param.result = null
+                    }
+                }
             )
         } catch (t: Throwable) {
             XposedBridge.log(t)
