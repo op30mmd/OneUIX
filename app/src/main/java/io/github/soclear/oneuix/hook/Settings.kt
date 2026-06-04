@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XC_MethodReplacement
 import de.robv.android.xposed.XC_MethodReplacement.returnConstant
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedBridge.hookMethod
@@ -223,87 +224,19 @@ object Settings {
     fun hideSettingsAccountCard(loadPackageParam: LoadPackageParam) {
         if (loadPackageParam.packageName != Package.SETTINGS) return
         try {
-            val clazz = XposedHelpers.findClass(
-                "com.samsung.android.settings.homepage.SecHomepageAccountLayout",
+            val controllerClass = XposedHelpers.findClassIfExists(
+                "com.samsung.android.settings.homepage.TopLevelSamsungAccountPreferenceController",
                 loadPackageParam.classLoader
             )
 
-            XposedBridge.hookAllConstructors(clazz, object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    val view = param.thisObject as View
-
-                    view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-                        override fun onViewAttachedToWindow(v: View) {
-                            var targetView = v
-                            var parent = v.parent
-                            var foundRecyclerView = false
-
-                            // Climb the view tree to find the absolute root wrapper inside the RecyclerView
-                            while (parent is ViewGroup) {
-                                if (parent.javaClass.simpleName.contains("RecyclerView")) {
-                                    foundRecyclerView = true
-                                    break
-                                }
-                                targetView = parent as View
-                                parent = parent.parent
-                            }
-
-                            // Fallback just in case Samsung changes the layout structure in a future update
-                            if (!foundRecyclerView) {
-                                targetView = v
-                            }
-
-                            // Attach an indestructible layout listener to the root item
-                            targetView.addOnLayoutChangeListener { changedView, _, _, _, _, _, _, _, _ ->
-
-                                // 1. Force Visibility
-                                if (changedView.visibility != View.GONE) {
-                                    changedView.visibility = View.GONE
-                                }
-
-                                // 2. Erase Paddings (Prevents infinite loops by checking first)
-                                if (changedView.paddingTop != 0 || changedView.paddingBottom != 0 ||
-                                    changedView.paddingLeft != 0 || changedView.paddingRight != 0) {
-                                    changedView.setPadding(0, 0, 0, 0)
-                                }
-
-                                // 3. Erase Minimum Heights mapped from XML
-                                if (changedView.minimumHeight != 0) changedView.minimumHeight = 0
-                                if (changedView.minimumWidth != 0) changedView.minimumWidth = 0
-
-                                // 4. Erase Physical Dimensions and Margins
-                                val lp = changedView.layoutParams
-                                if (lp != null) {
-                                    var modified = false
-                                    if (lp.width != 0 || lp.height != 0) {
-                                        lp.width = 0
-                                        lp.height = 0
-                                        modified = true
-                                    }
-                                    if (lp is ViewGroup.MarginLayoutParams) {
-                                        if (lp.topMargin != 0 || lp.bottomMargin != 0 ||
-                                            lp.leftMargin != 0 || lp.rightMargin != 0) {
-                                            lp.setMargins(0, 0, 0, 0)
-                                            modified = true
-                                        }
-                                    }
-
-                                    // Only re-apply LayoutParams if we changed them to prevent an infinite layout ANR loop
-                                    if (modified) {
-                                        changedView.layoutParams = lp
-                                    }
-                                }
-                            }
-
-                            // Trigger the hiding process manually for the first frame
-                            targetView.visibility = View.GONE
-                            targetView.requestLayout()
-                        }
-
-                        override fun onViewDetachedFromWindow(v: View) {}
-                    })
-                }
-            })
+            if (controllerClass != null) {
+                // Force the controller to always return 3 (which means "Hide this setting")
+                XposedBridge.hookAllMethods(
+                    controllerClass,
+                    "getAvailabilityStatus",
+                    XC_MethodReplacement.returnConstant(3)
+                )
+            }
         } catch (t: Throwable) {
             XposedBridge.log(t)
         }
